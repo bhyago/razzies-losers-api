@@ -3,12 +3,31 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
 
-type MovieRecord = {
+const MAX_PER_PAGE = 50;
+
+export type MovieRecord = {
   year: number;
   title: string;
   studios: string;
   producers: string;
   winner: boolean;
+};
+
+export type FindMoviesFilters = {
+  winner?: boolean;
+  year?: number;
+};
+
+export type MoviesPaginationOptions = {
+  page?: number;
+  perPage?: number;
+};
+
+export type MoviesQueryResult = {
+  total: number;
+  page: number;
+  perPage: number;
+  items: MovieRecord[];
 };
 
 @Injectable()
@@ -124,19 +143,54 @@ export class DatabaseService implements OnModuleInit {
     }
   }
 
-  findAllMovies(): MovieRecord[] {
-    const queryResult = this.connection.exec(`
-      SELECT year, title, studios, producers, winner FROM movies
-      ORDER BY year ASC, title ASC;
-    `);
+  findMovies(
+    filters: FindMoviesFilters = {},
+    pagination?: MoviesPaginationOptions,
+  ): MoviesQueryResult {
+    const whereClause: string[] = [];
 
-    if (!queryResult.length) {
-      return [];
+    if (typeof filters.year === 'number' && Number.isFinite(filters.year)) {
+      whereClause.push(`year = ${filters.year}`);
     }
 
-    const [result] = queryResult;
-    const { columns, values } = result;
+    if (typeof filters.winner === 'boolean') {
+      whereClause.push(`winner = ${filters.winner ? 1 : 0}`);
+    }
 
+    const whereStatement = whereClause.length
+      ? `WHERE ${whereClause.join(' AND ')}`
+      : '';
+
+    const { page, perPage, offset } = this.resolvePagination(pagination);
+
+    const totalResult = this.connection.exec(`
+      SELECT COUNT(*) as total FROM movies
+      ${whereStatement};
+    `);
+
+    const total =
+      totalResult.length && totalResult[0].values.length
+        ? Number(totalResult[0].values[0][0])
+        : 0;
+
+    const queryResult = this.connection.exec(`
+      SELECT year, title, studios, producers, winner FROM movies
+      ${whereStatement}
+      ORDER BY year ASC, title ASC
+      LIMIT ${perPage}
+      OFFSET ${offset};
+    `);
+
+    const items = queryResult.length ? this.mapResultRows(queryResult[0]) : [];
+
+    return { total, page, perPage, items };
+  }
+
+  private mapResultRows(result: {
+    columns: string[];
+    values: Array<Array<string | number>>;
+  }): MovieRecord[] {
+    const { columns, values } = result;
     return values.map((row) => {
       const record: Record<string, string | number> = {};
       columns.forEach((column, columnIndex) => {
@@ -150,5 +204,20 @@ export class DatabaseService implements OnModuleInit {
         winner: (record['winner'] as number) === 1,
       };
     });
+  }
+
+  private resolvePagination(options?: MoviesPaginationOptions) {
+    const rawPage = options?.page ?? 1;
+    const rawPerPage = options?.perPage ?? MAX_PER_PAGE;
+
+    const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+    const perPageCandidate =
+      Number.isInteger(rawPerPage) && rawPerPage > 0
+        ? rawPerPage
+        : MAX_PER_PAGE;
+    const perPage = Math.min(perPageCandidate, MAX_PER_PAGE);
+    const offset = (page - 1) * perPage;
+
+    return { page, perPage, offset };
   }
 }
