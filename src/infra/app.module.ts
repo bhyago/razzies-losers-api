@@ -5,6 +5,7 @@ import { AppLoggingInterceptor } from './logging/app-logging.interceptor';
 import { StructuredLoggerService } from './logging/structured-logger.service';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { DatabaseModule } from './database/database.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { ConfigModule } from '@nestjs/config';
       isGlobal: true,
     }),
     EnvModule,
+    DatabaseModule,
   ],
   providers: [
     StructuredLoggerService,
