@@ -77,6 +77,7 @@
   - `GET /accounts/:accountId/ledger` – lista lançamentos contábeis (com paginação e ordenação).
 - Filmes (Golden Raspberry Awards)
   - `GET /movies` – lista todos os indicados e vencedores do Pior Filme lendo o CSV em memória. Aceita filtros opcionais `winner` (`true`/`false`) e `year` (numérico) para restringir o resultado, além de paginação com `page` (padrão `1`) e `perPage` (padrão `50`, máximo `50` por página).
+  - `GET /movies/producers/intervals` – retorna os produtores com menor e maior intervalo entre vitórias consecutivas segundo o formato solicitado.
 
 <a id="processamento-de-transacoes"></a>
 
