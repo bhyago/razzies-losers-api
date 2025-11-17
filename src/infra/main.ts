@@ -21,10 +21,19 @@ async function bootstrap() {
   patchNestJsSwagger();
   const config = new DocumentBuilder()
     .setTitle('Razzies Losers API')
-    .setDescription([].join('\n'))
+    .setDescription(
+      [
+        'API para consulta aos indicados e vencedores do Golden Raspberry Awards.',
+        '- Dados carregados a partir do CSV e mantidos em memória.',
+        '- Filtros por ano e flag de vencedor, com paginação configurável.',
+        '- Rotas validadas com Zod; erros de validação retornam status 400.',
+      ].join('\n'),
+    )
     .setVersion('1.0.0')
-    .addBearerAuth()
-    .addTag('', '')
+    .addTag(
+      'movies',
+      'Consulta de filmes e intervalos de prêmios por produtor.',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
