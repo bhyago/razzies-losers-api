@@ -20,7 +20,7 @@ API em NestJS que lê o CSV do Golden Raspberry Awards e expõe endpoints para l
 
 ## Pré-requisitos
 
-- Node 20+
+- Node LTS 24.11.1
 - pnpm (ou npm/yarn equivalente)
 
 ## Configuração
@@ -52,7 +52,7 @@ pnpm start:dev
 
 ## Notas de atualização
 
-- Ambiente: use Node 20+; se o `sqlite3` reclamar de bindings faltando, rode `npm_config_build_from_source=true pnpm rebuild sqlite3` após forçar `nvm use 20.11.0`.
+- Ambiente: use Node LTS 24.11.1; se o `sqlite3` reclamar de bindings faltando, rode `npm_config_build_from_source=true pnpm rebuild sqlite3` após forçar `nvm use 24.11.1`.
 - Banco em memória: deixamos de usar `sql.js` sem ORM e adotamos `sqlite3` em memória via TypeORM, atendendo ao requisito de SGDB embarcado que sobe e desce junto com a aplicação (sem arquivo físico ou dependência externa como Docker).
 - Desempenho: o cálculo de intervalos de produtores foi reescrito para uma passada linear com `Map` (hashmap), reduzindo a complexidade para O(N) e medido em teste de desempenho com 10k registros.
 
