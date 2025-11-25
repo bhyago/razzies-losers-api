@@ -9,7 +9,7 @@ API em NestJS que lê o CSV do Golden Raspberry Awards e expõe endpoints para l
 - [Configuração](#configuração)
 - [Rodar a API](#rodar-a-api)
 - [Endpoints principais](#endpoints-principais)
-- [Notas de implementação](#notas-de-implementação)
+- [Notas de atualização](#notas-de-atualização)
 - [Testes e cobertura](#testes-e-cobertura)
 
 ## Stack
@@ -50,10 +50,11 @@ pnpm start:dev
 - `GET /movies` — lista filmes com filtros opcionais `year`, `winner`, `page`, `perPage`.
 - `GET /movies/producers/intervals` — produtores com menor e maior intervalo entre vitórias consecutivas.
 
-## Notas de implementação
+## Notas de atualização
 
-- Desempenho: o cálculo de intervalos de produtores foi reescrito para uma passada linear com `Map` (hashmap), reduzindo a complexidade para O(N) e medido em teste de desempenho com 10k registros.
+- Ambiente: use Node 20+; se o `sqlite3` reclamar de bindings faltando, rode `npm_config_build_from_source=true pnpm rebuild sqlite3` após forçar `nvm use 20.11.0`.
 - Banco em memória: deixamos de usar `sql.js` sem ORM e adotamos `sqlite3` em memória via TypeORM, atendendo ao requisito de SGDB embarcado que sobe e desce junto com a aplicação (sem arquivo físico ou dependência externa como Docker).
+- Desempenho: o cálculo de intervalos de produtores foi reescrito para uma passada linear com `Map` (hashmap), reduzindo a complexidade para O(N) e medido em teste de desempenho com 10k registros.
 
 ## Testes e cobertura
 
