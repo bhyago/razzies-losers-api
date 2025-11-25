@@ -122,35 +122,45 @@ export class DatabaseService implements OnModuleInit {
     filters: FindMoviesFilters = {},
     pagination?: MoviesPaginationOptions,
   ): Promise<MoviesQueryResult> {
-    const queryBuilder = this.moviesRepository.createQueryBuilder('movie');
-
-    if (typeof filters.year === 'number' && Number.isFinite(filters.year)) {
-      queryBuilder.andWhere('movie.year = :year', { year: filters.year });
-    }
-    if (typeof filters.winner === 'boolean') {
-      queryBuilder.andWhere('movie.winner = :winner', {
-        winner: filters.winner,
-      });
-    }
-
     const { page, perPage, offset } = this.resolvePagination(pagination);
-    const [movies, total] = await queryBuilder
-      .orderBy('movie.year', 'ASC')
-      .addOrderBy('movie.title', 'ASC')
-      .skip(offset)
-      .take(perPage)
-      .getManyAndCount();
+    const { whereClause, parameters } = this.buildFilterQuery(filters);
 
-    const items = movies.map((movie) => this.mapEntityToRecord(movie));
+    const rows: Array<
+      MovieRecord & {
+        total: number;
+      }
+    > = await this.moviesRepository.query(
+      `
+      SELECT
+        year,
+        title,
+        studios,
+        producers,
+        winner,
+        COUNT(*) OVER () AS total
+      FROM movies
+      ${whereClause}
+      ORDER BY year ASC, title ASC
+      LIMIT ? OFFSET ?
+      `,
+      [...parameters, perPage, offset],
+    );
+
+    const total = rows.length > 0 ? Number(rows[0].total ?? 0) : 0;
+    const items = rows.map((row: any) => this.mapRowToRecord(row));
     return { total, page, perPage, items };
   }
 
   async findWinnerMovies(): Promise<MovieRecord[]> {
-    const winners = await this.moviesRepository.find({
-      where: { winner: true },
-      order: { year: 'ASC', title: 'ASC' },
-    });
-    return winners.map((movie) => this.mapEntityToRecord(movie));
+    const winners = await this.moviesRepository.query(
+      `
+      SELECT year, title, studios, producers, winner
+      FROM movies
+      WHERE winner = 1
+      ORDER BY year ASC, title ASC
+      `,
+    );
+    return winners.map((row: any) => this.mapRowToRecord(row));
   }
 
   private resolvePagination(options?: MoviesPaginationOptions) {
@@ -175,6 +185,35 @@ export class DatabaseService implements OnModuleInit {
       studios: movie.studios,
       producers: movie.producers,
       winner: movie.winner,
+    };
+  }
+
+  private buildFilterQuery(filters: FindMoviesFilters) {
+    const clauses: string[] = [];
+    const parameters: Array<string | number> = [];
+
+    if (typeof filters.year === 'number' && Number.isFinite(filters.year)) {
+      clauses.push('year = ?');
+      parameters.push(filters.year);
+    }
+    if (typeof filters.winner === 'boolean') {
+      clauses.push('winner = ?');
+      parameters.push(filters.winner ? 1 : 0);
+    }
+
+    const whereClause =
+      clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    return { whereClause, parameters };
+  }
+
+  private mapRowToRecord(row: any): MovieRecord {
+    return {
+      year: Number(row.year),
+      title: row.title,
+      studios: row.studios,
+      producers: row.producers,
+      winner:
+        typeof row.winner === 'boolean' ? row.winner : Number(row.winner) === 1,
     };
   }
 }
