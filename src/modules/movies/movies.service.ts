@@ -38,7 +38,7 @@ export class MoviesService {
       perPage: input.perPage,
     };
 
-    const result = this.database.findMovies(filters, pagination);
+    const result = await this.database.findMovies(filters, pagination);
     return {
       total: result.total,
       page: result.page,
@@ -53,8 +53,8 @@ export class MoviesService {
     };
   }
 
-  getProducersAwardIntervals(): ProducersIntervalResponseDto {
-    const winners = this.database.findWinnerMovies();
+  async getProducersAwardIntervals(): Promise<ProducersIntervalResponseDto> {
+    const winners = await this.database.findWinnerMovies();
     const intervals = this.calculateProducerIntervals(winners);
 
     if (intervals.length === 0) {

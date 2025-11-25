@@ -7,6 +7,7 @@ export default defineConfig({
     reporters: ['verbose'],
     globals: true,
     root: './',
+    threads: false,
   },
   plugins: [
     tsConfigPaths(),

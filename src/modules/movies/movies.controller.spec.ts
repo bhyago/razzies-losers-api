@@ -18,8 +18,8 @@ async function setupApplication(seed?: MovieRecord[]) {
   await app.init();
 
   if (seed) {
-    const database = app.get(DatabaseService) as Record<string, unknown>;
-    Reflect.set(database, 'movies', seed);
+    const database = app.get(DatabaseService);
+    await database.loadCustomSeed(seed);
   }
 
   return { app, httpServer: app.getHttpServer() };
