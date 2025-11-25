@@ -1,6 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { MovieEntity } from './entities/movie.entity';
 
 const MAX_PER_PAGE = 50;
 
@@ -32,13 +35,24 @@ export type MoviesQueryResult = {
 @Injectable()
 export class DatabaseService implements OnModuleInit {
   private readonly logger = new Logger(DatabaseService.name);
-  private movies: MovieRecord[] = [];
+
+  constructor(
+    @InjectRepository(MovieEntity)
+    private readonly moviesRepository: Repository<MovieEntity>,
+  ) {}
 
   async onModuleInit() {
     const movies = await this.loadMovies();
-    this.movies = movies;
+    await this.populateDatabase(movies);
     this.logger.log(
       `Carregamos ${movies.length} filmes no banco de dados em memória.`,
+    );
+  }
+
+  async loadCustomSeed(records: MovieRecord[]) {
+    await this.populateDatabase(records);
+    this.logger.log(
+      `Seed customizada carregada com ${records.length} registros.`,
     );
   }
 
@@ -56,6 +70,25 @@ export class DatabaseService implements OnModuleInit {
 
     const dataRows = rows.slice(1);
     return dataRows.map((line, index) => this.mapCsvLineToMovie(line, index));
+  }
+
+  private async populateDatabase(movies: MovieRecord[]) {
+    await this.moviesRepository.manager.transaction(async (manager) => {
+      await manager.getRepository(MovieEntity).clear();
+      if (movies.length === 0) {
+        return;
+      }
+      const entries = movies.map((movie) =>
+        manager.create(MovieEntity, {
+          year: movie.year,
+          title: movie.title,
+          studios: movie.studios,
+          producers: movie.producers,
+          winner: movie.winner,
+        }),
+      );
+      await manager.save(entries);
+    });
   }
 
   private mapCsvLineToMovie(line: string, index: number): MovieRecord {
@@ -85,49 +118,49 @@ export class DatabaseService implements OnModuleInit {
     };
   }
 
-  findMovies(
+  async findMovies(
     filters: FindMoviesFilters = {},
     pagination?: MoviesPaginationOptions,
-  ): MoviesQueryResult {
-    const filtered = this.movies.filter((movie) => {
-      if (
-        typeof filters.year === 'number' &&
-        Number.isFinite(filters.year) &&
-        movie.year !== filters.year
-      ) {
-        return false;
-      }
-      if (
-        typeof filters.winner === 'boolean' &&
-        movie.winner !== filters.winner
-      ) {
-        return false;
-      }
-      return true;
-    });
+  ): Promise<MoviesQueryResult> {
     const { page, perPage, offset } = this.resolvePagination(pagination);
-    const items = filtered
-      .slice()
-      .sort((a, b) => {
-        if (a.year !== b.year) {
-          return a.year - b.year;
-        }
-        return a.title.localeCompare(b.title);
-      })
-      .slice(offset, offset + perPage);
-    return { total: filtered.length, page, perPage, items };
+    const { whereClause, parameters } = this.buildFilterQuery(filters);
+
+    const rows: Array<
+      MovieRecord & {
+        total: number;
+      }
+    > = await this.moviesRepository.query(
+      `
+      SELECT
+        year,
+        title,
+        studios,
+        producers,
+        winner,
+        COUNT(*) OVER () AS total
+      FROM movies
+      ${whereClause}
+      ORDER BY year ASC, title ASC
+      LIMIT ? OFFSET ?
+      `,
+      [...parameters, perPage, offset],
+    );
+
+    const total = rows.length > 0 ? Number(rows[0].total ?? 0) : 0;
+    const items = rows.map((row: any) => this.mapRowToRecord(row));
+    return { total, page, perPage, items };
   }
 
-  findWinnerMovies(): MovieRecord[] {
-    return this.movies
-      .filter((movie) => movie.winner)
-      .slice()
-      .sort((a, b) => {
-        if (a.year !== b.year) {
-          return a.year - b.year;
-        }
-        return a.title.localeCompare(b.title);
-      });
+  async findWinnerMovies(): Promise<MovieRecord[]> {
+    const winners = await this.moviesRepository.query(
+      `
+      SELECT year, title, studios, producers, winner
+      FROM movies
+      WHERE winner = 1
+      ORDER BY year ASC, title ASC
+      `,
+    );
+    return winners.map((row: any) => this.mapRowToRecord(row));
   }
 
   private resolvePagination(options?: MoviesPaginationOptions) {
@@ -143,5 +176,44 @@ export class DatabaseService implements OnModuleInit {
     const offset = (page - 1) * perPage;
 
     return { page, perPage, offset };
+  }
+
+  private mapEntityToRecord(movie: MovieEntity): MovieRecord {
+    return {
+      year: movie.year,
+      title: movie.title,
+      studios: movie.studios,
+      producers: movie.producers,
+      winner: movie.winner,
+    };
+  }
+
+  private buildFilterQuery(filters: FindMoviesFilters) {
+    const clauses: string[] = [];
+    const parameters: Array<string | number> = [];
+
+    if (typeof filters.year === 'number' && Number.isFinite(filters.year)) {
+      clauses.push('year = ?');
+      parameters.push(filters.year);
+    }
+    if (typeof filters.winner === 'boolean') {
+      clauses.push('winner = ?');
+      parameters.push(filters.winner ? 1 : 0);
+    }
+
+    const whereClause =
+      clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    return { whereClause, parameters };
+  }
+
+  private mapRowToRecord(row: any): MovieRecord {
+    return {
+      year: Number(row.year),
+      title: row.title,
+      studios: row.studios,
+      producers: row.producers,
+      winner:
+        typeof row.winner === 'boolean' ? row.winner : Number(row.winner) === 1,
+    };
   }
 }

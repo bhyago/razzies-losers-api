@@ -38,7 +38,7 @@ export class MoviesService {
       perPage: input.perPage,
     };
 
-    const result = this.database.findMovies(filters, pagination);
+    const result = await this.database.findMovies(filters, pagination);
     return {
       total: result.total,
       page: result.page,
@@ -53,8 +53,8 @@ export class MoviesService {
     };
   }
 
-  getProducersAwardIntervals(): ProducersIntervalResponseDto {
-    const winners = this.database.findWinnerMovies();
+  async getProducersAwardIntervals(): Promise<ProducersIntervalResponseDto> {
+    const winners = await this.database.findWinnerMovies();
     const intervals = this.calculateProducerIntervals(winners);
 
     if (intervals.length === 0) {
@@ -77,34 +77,25 @@ export class MoviesService {
   private calculateProducerIntervals(
     movies: MovieRecord[],
   ): ProducerInterval[] {
-    const producerWins = new Map<string, number[]>();
+    const intervals: ProducerInterval[] = [];
+    const lastWinYearByProducer = new Map<string, number>();
 
     for (const movie of movies) {
       const producers = this.splitValueList(movie.producers);
       for (const producer of producers) {
-        if (!producerWins.has(producer)) {
-          producerWins.set(producer, []);
+        const previousWin = lastWinYearByProducer.get(producer);
+        if (typeof previousWin === 'number') {
+          intervals.push({
+            producer,
+            previousWin,
+            followingWin: movie.year,
+            interval: movie.year - previousWin,
+          });
         }
-        producerWins.get(producer)!.push(movie.year);
+        lastWinYearByProducer.set(producer, movie.year);
       }
     }
 
-    const intervals: ProducerInterval[] = [];
-
-    for (const [producer, wins] of producerWins.entries()) {
-      if (wins.length < 2) {
-        continue;
-      }
-      wins.sort((a, b) => a - b);
-      for (let index = 1; index < wins.length; index++) {
-        intervals.push({
-          producer,
-          previousWin: wins[index - 1],
-          followingWin: wins[index],
-          interval: wins[index] - wins[index - 1],
-        });
-      }
-    }
     return intervals;
   }
 

@@ -80,8 +80,8 @@ export class MoviesController {
     description: 'Intervalos calculados com sucesso.',
     type: ProducersIntervalDTO.ProducersIntervalResponse,
   })
-  getProducersIntervals(): ProducersIntervalDTO.ProducersIntervalResponse {
-    const response = this.moviesService.getProducersAwardIntervals();
+  async getProducersIntervals(): Promise<ProducersIntervalDTO.ProducersIntervalResponse> {
+    const response = await this.moviesService.getProducersAwardIntervals();
     return ProducersIntervalSchemaValidation.response.parse(response);
   }
 }
